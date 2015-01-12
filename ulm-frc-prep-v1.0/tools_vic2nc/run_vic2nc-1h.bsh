@@ -1,0 +1,77 @@
+#!/bin/bash
+
+config=$1
+source $config
+
+logvicdisagg=$vic_control/logs_vicdisagg
+mkdir $logvicdisagg
+
+###################################
+## vicDisagg (daily to 3-hourly) ##
+###################################
+
+#: <<-CMT
+#eval $vicdir/vicDisagg -g $globaldir/"global.4d_02_02.splitlist"$ipad #> logs/log$ipad".txt" 2>&1
+echo $vicglobaldir
+for glb in $(ls $vicglobaldir/*)
+do
+    glbname=$(basename $glb)
+    echo $VIC_DISAGG $glb
+    $VIC_DISAGG -g $glb > $logvicdisagg/log_$glbname 2>&1
+    vic_exit_status="$?"
+    if [ "$vic_exit_status" -ne 0 ]
+    then
+        echo "Trouble with disagg. Exit status:" $vic_exit_status
+        exit $vic_exit_status
+    fi
+done
+#CMT
+
+##################################################
+## vic2nc.c (3-hourly ascii forcings to NetCDF) ##
+##################################################
+
+: <<-CMT
+TOOLDIR="/home/raid3/stumbaugh/IS/CONUS/v2.3/ulm/tools_vic2nc"
+CONTROLDIR="/home/raid3/stumbaugh/IS/CONUS/v2.3/ulm/control_vic/tiles_4d/02_02"
+NCOUTDIR="/state/partition1/stumbaugh/ulm_v1.0/CanESM2-historical/4d_02_02/frc3h-nc"
+ASCIIFORCEDIR="/state/partition1/stumbaugh/ulm_v1.0/CanESM2-historical/4d_02_02/frc3h"
+STARTDATE="1950-01-01"
+ENDDATE="2005-12-31"
+CMT
+
+## Check for expected number of input/output cell files before running vic2nc.c
+#n3h_cells=$(ls $ASCIIFORCEDIR/full_data* | wc -l)
+#nEx_cells=$(wc -l $CONTROLDIR/avail.soil.splits/splitlists/*)
+
+#if [ "$n3h_cells" -eq "$nEx_cells" ]
+#then
+##run vic_to nc MODEL
+##echo "$TOOLDIR/run_vic2nc.pl /raid9/ishu/integrated_scenario/tools /raid9/ishu/integrated_scenario/params/vic2nc/metadata.template /raid9/ishu/integrated_scenario/control /raid9/ishu/integrated_scenario/forcing/vic_disagg_2005_2011 /raid9/ishu/integrated_scenario/forcing/nc 2005-01-01 2011-12-31"
+#: <<-CMT
+$TOOLDIR/run_vic2nc.pl $TOOLDIR $TOOLDIR/metadata.template-1h $CONTROLDIR $ASCIIFORCEDIR $NCOUTDIR $STARTDATE $ENDDATE full_data  > $logvicdisagg/log_vic2nc.txt 2>&1
+
+if [ "$?" -eq 0 ]
+then
+    # succesful conversion
+    # archive any subdomains of interest
+    #therefore delete the 3hourly
+    rm -rf $ASCIIFORCEDIR
+    # slightly compress all of the forcing files ~25% reduction for 256/256 active cells (>50% for 32/256)
+    for i in $(ls $NCOUTDIR/*.nc)
+    do
+        ncks -O -4 -L 1 $i $i
+		if [ "$?" -ne 0 ]
+		then
+            echo "Trouble with ncks compression. Exit status:" $?
+            exit $?
+		fi
+    done
+else
+	echo "Trouble with 3h ascii to NetCDF conversion. Exit status:" $?
+	exit $?
+fi
+
+
+#CMT
+#fi

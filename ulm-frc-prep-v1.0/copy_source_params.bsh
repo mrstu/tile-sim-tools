@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# manually copy pertinent sections of ulm.input.PNW.0.0625 to src_params.txt
+# now parse and then copy parameter files to /params_full directory
+
+param_records=src_params
+odir=params_full
+
+awk -v FS=[=\ ] '{print $(NF-1), $NF}' $param_records".txt" | sed 's|'\''||g' > $param_records"_key_path.txt"
+
+while read line
+do
+    iparampath=$(echo $line | awk '{print $2}')
+    ofile=$(basename $iparampath)
+    echo cp $iparampath $odir
+    cp $iparampath* $odir
+done < $param_records"_key_path.txt"

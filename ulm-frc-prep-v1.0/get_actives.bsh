@@ -1,0 +1,16 @@
+#!/bin/bash
+
+infile=$1
+varname=$2
+
+
+# Get lat,lon and format output table
+ncks -C -H -d Time,1 -v $varname $infile | awk '{split($2,lat,"="); split($3,lon,"="); split($4,val,"="); printf("%4.5f %4.5f %s\n", lat[2], lon[2], val[2])}' > latlons.txt
+
+# Get ilat,jlon,values and format output table
+ncks -C -H -d Time,1 -v $varname $infile | awk -F'[][]' '{print $4, $6, $9}' > indvals.txt
+
+# Combine <lats> <lons> <ilat> <jlon> <value> into one table
+## Convert lons from (0-360) to (-180-180)
+#paste -d" " latlons.txt indvals.txt | grep -v "_" |  head -n -1 | awk '{lon=$2-360.; $2=lon; printf("%4.4f5 %4.5f %d %d\n",$1,$2,$4,$5)}' > goodlatlons.txt
+paste -d" " latlons.txt indvals.txt | grep -v "_" |  head -n -1 | awk '{lon=$2; printf("%4.4f5 %4.5f %d %d\n",$1,$2,$4,$5)}' > goodlatlons.txt

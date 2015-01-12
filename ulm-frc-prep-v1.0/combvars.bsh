@@ -1,0 +1,24 @@
+splitfile=$1
+frcdir=$2
+dir_combout=$3
+
+#frcdirs=$(echo $storedir/vicfrc/{pr,tasmax,tasmin,was}_cells/$scen/$gcm)
+
+if [ ! -d $dir_combout ]
+then
+    mkdir -p $dir_combout
+fi
+
+if [ 1 -eq 1 ]
+then
+while read line
+do
+    ind=$(echo $line | cut -f1 -d" ")
+    latlon=$(echo $line | cut -f2 -d" ")
+    frcdirs=$(echo $frcdir/{PREC,TMAX,TMIN,WIND}_cells/$ind)
+    
+    fout=$dir_combout/frc4_$latlon
+    paste -d" " $frcdirs > $fout
+    
+done < $splitfile
+fi

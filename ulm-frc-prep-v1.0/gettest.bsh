@@ -1,0 +1,8 @@
+#!/bin/bash
+
+source testvars.txt
+
+echo $blah $blah2
+cat >.conf <<EOL
+pwd=$(pwd -P)
+EOL

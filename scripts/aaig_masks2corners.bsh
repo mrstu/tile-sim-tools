@@ -1,0 +1,27 @@
+#!/bin/bash
+
+## read rectangular mask files
+## write out lower right and upper right corners of domain
+## formatted for ncks extraction
+
+maskfiles="$@"
+
+#for i in $(ls tiled_*_mask_order_pnw_0.0625.asc); do head -n 5 $i | awk '{print $2}' | xargs | \
+#awk -v fn=$i '{eleft=$3+360.; ebottom=$4; etop=$4+$2*$5; eright=eleft+$1*$5; 
+#printf("%s -d lon,%4.5f,%4.5f -d lat,%4.5f,%4.5f\n",fn,eleft,eright,ebottom,etop)}'; done > tile
+
+cnt=1
+for i in $maskfiles
+do
+
+    idmap="$cnt $i"    
+    #echo $idmap
+
+
+    head -n 5 $i | awk '{print $2}' | xargs | \
+    awk -v fn="$idmap" '{eleft=$3+360.; ebottom=$4; etop=$4+$2*$5; eright=eleft+$1*$5; printf("%s -d lon,%4.5f,%4.5f -d lat,%4.5f,%4.5f\n",fn,eleft,eright,ebottom,etop)}'  
+    # for lon 0-360
+    # for lon -180-180 (just remove 360 addition)
+    #awk -v fn=$i '{eleft=$3; ebottom=$4; etop=$4+$2*$5; eright=eleft+$1*$5; printf("%s -d lon,%4.5f,%4.5f -d lat,%4.5f,%4.5f\n",fn,eleft,eright,ebottom,etop)}'  
+    let cnt=$cnt+1
+done

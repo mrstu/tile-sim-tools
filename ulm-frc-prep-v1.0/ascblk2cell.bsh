@@ -1,0 +1,49 @@
+#!/bin/bash
+
+## origin: derived from catvar_grd2cell.bsh
+
+## compile requirements: /home/stumbaugh/lib/cell_to_file.c
+
+
+#var=$1 #PREC -- corresponds to ncfile
+config=$1
+source $config
+
+syncdir=$controldir/.sync_report #_"$scen"_"$gcm".txt"
+
+mkdir -p $opdir $outdir_cells $outdir_cat
+
+id=$RANDOM
+rundate=$(date +"%Y-%m-%d-%H-%M-%S")
+
+syncfile=$syncdir/$var"_"$unpackname"_"$rundate".txt"
+rm $syncfile
+mkdir $syncdir
+
+echo "HOSTNAME = "$(hostname) > $syncfile
+echo "STARTDATE = "$rundate >> $syncfile
+
+/sw/contrib/hydro/icc_14.0.2/bin/ncks -O --mk_rec_dmn Time $nc1var $nc1var
+
+#TODO: Add cdo outputf for num cells and precision.
+echo "FILE_INPUT_NCVAR= "$nc1var >> $syncfile
+echo "FILE_OUTPUT_BLOCK = "$asciiblk >> $syncfile
+echo '# running cdo ouputf'
+echo "CMD_VARBLK2CELL = "/sw/contrib/hydro/bin/cdo outputf,"%4.2f ",$numgridcells $nc1var >> $syncfile
+/sw/contrib/hydro/bin/cdo outputf,"%4.2f ",$numgridcells $nc1var > $asciiblk
+
+echo "DIRECTORY_CELLS = "$outdir_cells/ >> $syncfile
+echo "FILE_ACTIVE_INDICES = "$active_indices >> $syncfile
+echo "FILE_INPUT_ASCII_BLOCK = "$asciiblk >> $syncfile
+echo "PARM_TIMESTEP_CHUNK = "$chunktimestep >> $syncfile
+echo "PARM_TIMESTEP_NUMBER = "$numtimesteps >> $syncfile
+
+##/home/stumbaugh/bin/cell_to_file /home/stumbaugh/downloader/IS/v2.2/dummy.nc.flatij.valinds.txt $outdir/all 6000 34675 $outdir_cells/
+echo '# running cell to file'
+#TODO: use freshly compiled cell_to_file
+echo "CMD_CELLTOFILE = "$BASECODE/bin/cell_to_file $active_indices $asciiblk $chunktimestep $numtimesteps $outdir_cells/ >> $syncfile
+#rm $outdir_cells/*
+$BASECODE/bin/cell_to_file $active_indices $asciiblk $chunktimestep $numtimesteps $outdir_cells/
+
+echo "STATUS_CELLFILES = COMPLETED" >> $syncfile
+echo "ENDDATE="$(date) >> $syncfile

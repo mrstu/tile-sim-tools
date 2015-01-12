@@ -1,0 +1,54 @@
+#!/bin/bash
+
+#TOOLS_DIR="/gscratch/hydro/mrstu/ulm3/BPA_304/models/ulm"
+#INPUT_DIR="/gscratch/hydro/mrstu/ulm3/BPA_304/models/ulm"
+
+#TOOLS_DIR="/home/mrstu/src/ULM.20141126"
+#INPUT_DIR="/home/mrstu/src/ULM.20141126"
+
+#TOOLS_DIR="/home/mrstu/src/ULM.20141126/ulm"
+
+itemplatedir=$1
+ilog=$2
+ulmpath=$3
+
+#TOOLS_DIR=$ulmpath
+
+if [ ! -f $ilog ]
+then
+    mkdir -p $ilog
+fi
+
+cfgs=($(ls $itemplatedir/*.cfg))
+ncfgs="${#cfgs[@]}"
+
+## RUN STAGED CONTROL FILES ##
+nstep=1
+for itemplate in "${cfgs[@]}"
+do
+    itempname=$(basename $itemplate .cfg)
+    outlog=$ilog/$itempname".txt"
+
+    #TODO:
+    ## special handling to do vicDisagg->nc prior to ULM run, then remove 3 hourly after ulm run.
+    ## not to easy to do here given initialization 1950s run in addition to historical and rcps.
+    #/civil/hydro/mrstu/IS/sim-ulm/tile-sim-tools/ulm-frc-prep-v1.0/tools_vic2nc/run_vic2nc.bsh
+    #grep -e " FORCING=" $itemplate
+      #  FORCING='/civil/hydro/mrstu/IS/sim-ulm/projects/prj3/unpack_forcings/CCSM4__historical/tiledata/tiles_16/16_00_04/frc3h-nc/full_data'
+    ## end special handling. ##
+
+    echo COMMAND: $ulmpath $itemplate
+    #TODO: what if outlog already exists. May want to preserve it.
+    $ulmpath $itemplate > $outlog 2>&1
+    EXIT_STATUS_ULM="$?"
+
+    ## Compress daily output
+    if [ "$EXIT_STATUS_ULM" -eq 0 ]
+    then
+        exit 0
+    else        
+        echo "ULM error encountered!  Exit status: "$EXIT_STATUS_ULM
+        exit "$EXIT_STATUS_ULM"
+    fi       
+
+done

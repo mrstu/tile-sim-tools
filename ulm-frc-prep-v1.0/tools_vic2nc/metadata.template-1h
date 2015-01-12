@@ -1,0 +1,43 @@
+# This file contains metadata for the
+# VIC-format data files 
+#--------------------------------------------
+# Global Attributes
+#--------------------------------------------
+INSTITUTION	University of Washington Dept. of Civil and Environmental Engineering
+SOURCES		Daily nowcast forcings ala Andy Wood; disaggregated via VIC with OUTPUT_FORCE=TRUE
+PRODUCTION      -
+HISTORY		-
+PROJECTION	Geographic
+SURFSGNCONVENTION	Traditional
+
+#--------------------------------------------
+# Dimensions
+#--------------------------------------------
+# Time
+START_TIME	<FORCE_START_YEAR>-<FORCE_START_MONTH>-<FORCE_START_DAY> 00:00:00
+END_TIME	<FORCE_END_YEAR>-<FORCE_END_MONTH>-<FORCE_END_DAY> 21:00:00
+TIME_STEP	3600
+TIME_UNITS	sec
+# Levels (Z-axis)
+NLEVELS		1
+
+#--------------------------------------------
+# Variables
+#--------------------------------------------
+# Format & Endian:
+# FORMAT can be one of BINARY, ASCII, or SCIENTIFIC
+# ENDIAN can be one of LITTLE or BIG
+# Defaults are FORMAT = BINARY and ENDIAN = LITTLE
+FORMAT  SCIENTIFIC
+#ENDIAN  LITTLE
+# The Sign and Mult columns are only used with FORMAT = BINARY.
+# For other formats, please place a "-" in the Sign and Mult columns.
+# Read	Name		Units		Z-Dep?	Sign		Mult	Description
+TRUE	SWdown		W/m^2		FALSE	-		-	Surface incident shortwave radiation
+TRUE	LWdown		W/m^2		FALSE	-		-	Surface incident longwave radiation
+TRUE	Tair		K		FALSE	-		-	Near surface air temperature
+TRUE	Qair		kg/kg		FALSE	-		-	Near surface specific humidity
+TRUE	PSurf		Pa		FALSE	-		-	Surface air pressure
+TRUE	Rainf		kg/m^2s		FALSE	-		-	Rainfall rate
+TRUE	Snowf		kg/m^2s		FALSE	-		-	Snowfall rate
+TRUE	Wind		m/s		FALSE	-		-	Near surface wind speed

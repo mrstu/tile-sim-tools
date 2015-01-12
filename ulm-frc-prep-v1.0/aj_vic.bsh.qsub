@@ -1,0 +1,12 @@
+#!/bin/bash
+#$ -cwd
+#$ -j y
+#$ -S /bin/bash 
+##$ -M mrstu@uw.edu
+##$ -m beas
+##$export PYTHONPATH=/home/stumbaugh
+#$ -q default.q@compute-0-0
+#$ -t 1-20
+export PYTHONPATH=/home/stumbaugh:/home/stumbaugh/devel
+./aj_vic.bsh
+

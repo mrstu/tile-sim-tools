@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Split a filelist and store in directory $outdir/"splitlists" with prefix "splitlist"
+
+filelist=$1
+outdir=$2
+splitsize=$3
+#echo $1
+mkdir -p $outdir/splitlists
+rm -f $outdir/splitlists/*
+#sed 's/.csv//g' $fluxflist > $dms/$fluxflist
+#sed -i 's/flux/fluxes/g' $dms/$fluxflist 		
+##sed -i '.bak' 's/flux/fluxes/g' $dms/$fluxflist 				
+##rm $dms/$fluxflist".bak"
+split -d -l $splitsize $filelist $outdir/splitlists/splitlist

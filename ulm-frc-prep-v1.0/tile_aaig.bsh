@@ -1,0 +1,71 @@
+#!/bin/bash
+
+#for i in $(ls params_full/*{asc,asc??}); do qcmd $DEFQ -N "tileparams" ./scripts/tile_aaig.bsh $i; done
+
+raster=$1 #elevation.PNW.asc
+outdir=$2
+tilesize=$3 # 32 (2 degree per side of 1/16th resoultion)
+#tilesize=64 # 4d
+
+rastername=$(basename $raster)
+
+whdims=$(gdalinfo -stats $raster | grep "^Size" | tr ' ' ',' | cut -f3,5 -d,)
+width=$(echo $whdims | cut -f1 -d,)
+height=$(echo $whdims | cut -f2 -d,)
+echo $width $height
+
+#cols=($(seq 0 $tilesize $width) $width)
+#rows=($(seq 0 $tilesize $height) $height)
+cols=($(seq 0 $tilesize $width))
+rows=($(seq 0 $tilesize $height))
+
+
+echo "${cols[@]}" | xargs
+echo "${rows[@]}" | xargs
+
+dir_params_tiles=$outdir/params_tiled_$tilesize
+
+mkdir -p $dir_params_tiles
+
+ccount=0
+for ic in "${cols[@]}"
+do
+    rcount=0
+    for ir in "${rows[@]}"
+    do
+        xsize=$tilesize
+        ysize=$tilesize        
+        cspan=$(echo $ic+$tilesize | bc)
+        rspan=$(echo $ir+$tilesize | bc)
+        if [ "$cspan" -gt "$width" ]
+        then
+            xsize=$(echo $width-$ic | bc)
+        fi
+        if [ "$rspan" -gt "$height" ]
+        then
+            ysize=$(echo $height-$ir | bc)            
+            #rspan=$(echo $height-$ir | bc)
+        fi
+        echo $ic $cspan $ir $rspan
+        icstr=$(printf "%3d" $ic)
+        irstr=$(printf "%3d" $ir)
+        ccstr=$(printf "%02d" $ccount)
+        crstr=$(printf "%02d" $rcount)        
+
+        echo $dir_params_tiles/tiled_$ccstr"_"$crstr"_"$rastername
+        echo gdal_translate -of "AAIGRID" -srcwin $ic $ir $xsize $ysize $raster $dir_params_tiles/tiled_$ccstr"_"$crstr"_"$rastername
+        gdal_translate -of "AAIGRID" -srcwin $ic $ir $xsize $ysize $raster $dir_params_tiles/tiled_$ccstr"_"$crstr"_"$rastername
+                
+        #echo gdal_translate -of "AAIGRID" -srcwin $ic $ir $cspan $rspan $raster $dir_params_tiles/tiled_$ccstr"_"$crstr"_"$raster
+        #gdal_translate -of "AAIGRID" -srcwin $ic $ir $cspan $rspan $raster $dir_params_tiles/tiled_$ccstr"_"$crstr"_"$raster
+        #"+str(i)+", "+str(j)+", "+str(w)+", " \
+            #    +str(h)+" " + sys.argv[1] + " " + sys.argv[2]+ "_" + str(tilesize)+ "_"+str(i).zfill(3)+"_"+str(j).zfill(3)+".asc"
+
+                
+        #gdaltranString = "gdal_translate -of AAIGRID -srcwin "+str(i)+", "+str(j)+", "+str(w)+", " \
+            #    +str(h)+" " + sys.argv[1] + " " + sys.argv[2]+ "_" + str(tilesize)+ "_"+str(i).zfill(3)+"_"+str(j).zfill(3)+".asc"
+        #os.system(gdaltranString)
+        let rcount=$rcount+1
+    done
+    let ccount=$ccount+1
+done

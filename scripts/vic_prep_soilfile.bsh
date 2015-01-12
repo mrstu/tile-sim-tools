@@ -1,0 +1,120 @@
+#!/bin/bash
+
+#export PYTHONPATH=/home/stumbaugh:/home/stumbaugh/devel
+
+config=$1
+source $config
+
+mkdir -p $vic_control
+
+
+# $NCOUTDIR1D don't remove b/c leave remnants like fldmean, etc.
+#rm -rf $ASCIIFORCEDIR1D $ASCIIFORCEDIR3H $NCOUTDIR $VICOUTDIR $VICSTATEDIR # $NCOUTDIR1D
+mkdir -p $ASCIIFORCEDIR1D $ASCIIFORCEDIR3H $NCOUTDIR $VICOUTDIR $VICSTATEDIR $NCOUTDIR1D
+echo $ASCIIFORCEDIR1D $ASCIIFORCEDIR3H $NCOUTDIR $VICOUTDIR $VICSTATEDIR $NCOUTDIR1D
+
+#echo /home/stumbaugh/bin/arcinfo_to_lat_lon_list_0625.bsh $tilefile tail -n +2   $vic_control/tile_cells.txt
+$BASECODE/arcinfo_to_lat_lon_list_0625.bsh $tilefile | tail -n +2  > $vic_control/tile_cells.txt
+#wait
+#echo /home/stumbaugh/bin/arcinfo_to_lat_lon_list_0625_no_data.bsh $tilefile tail -n +2 $vic_control/tile_cells_no_data.txt
+$BASECODE/arcinfo_to_lat_lon_list_0625_no_data.bsh $tilefile | tail -n +2  > $vic_control/tile_cells_no_data.txt
+
+for i in $(cat $vic_control/tile_cells_no_data.txt)
+do
+    touch $ASCIIFORCEDIR3H/$i
+done
+
+simdir=$vic_control
+
+##---Adapted from **soil2ncpng.bsh** to isolate soil file corresponding to active cells---##
+(
+cd $simdir
+
+#TODO: Don't keep making the per tile soil files over and over.
+#: <<-CMT
+awk '{printf("%s_%s\n", $3, $4)}' $basesoilfile > "baseLL.txt"
+
+awk -F_ '{printf("%s_%s\n", $1, $2)}' tile_cells.txt > "selectLL.txt"
+
+/sw/contrib/hydro/anaconda/bin/python $BASECODE/cell_intersect.py "baseLL.txt" "selectLL.txt"
+
+#./slice_rows.py -r sub_buffer_cell_indices.txt -t "/home/stumbaugh/spatial/soils/L13/vic.soil.lt103.plus.crb.can.regen" -o "soil_avail.txt"
+/sw/contrib/hydro/anaconda/bin/python $BASECODE/listutil/slice_rows.py -r sub_buffer_cell_indices.txt -t $basesoilfile -o "soil_avail.txt"
+
+# Extract subdomain snow file
+awk '{print $2}' "soil_avail.txt" > cellnos.txt
+
+/sw/contrib/hydro/anaconda/bin/python $BASECODE/L13/cell_intersect.py -i cellnos.txt -s $basesnowfile > snow_avail.txt
+
+
+/sw/contrib/hydro/anaconda/bin/python $BASECODE/L13/cell_intersect.py -i cellnos.txt -v $basevegfile > veg_avail.txt
+#CMT
+
+#./cell_intersect.py -i lt03.cellnos.txt -v vic.param/vic.veg.0625.new.cal.adj.can > newveg.txt2
+
+##mksplitlists OR
+#splitdir="avail.soil.splits"
+#$BASECODE/mksplitlists "soil_avail.txt" $splitdir $cells_per_split
+##split -d -l 3000 $newsoil splitsoil/$newsoil
+
+#TODO: create needed global files for each split
+mkdir globals.disagg globals.sim
+#sed 's|xxRESULTDIRxx|'$rundir/fluxes'|g' $input_template > globals
+#sed 's|STARTYEAR.*|STARTYEAR '$sim_startyear'|g' $input_template > globals
+#sed -i 's|xxENDYEARxx|'$sim_endyear'|g' $rundir/globals/$global_base
+#sed -i 's|xxFORCEDIRxx|'$force_dir'|g' $rundir/globals/$global_base
+#sed -i 's|xxFORCEYEARxx|'$force_startyear'|g' $rundir/globals/$global_base
+#sed -i 's|xxVEGPARAMxx|'$rundir/veg_avail.txt'|g' $rundir/globals/$global_base
+#sed -i 's|xxSNOWBANDxx|'$rundir/snow_avail.txt'|g' $rundir/globals/$global_base
+#sed -i 's|xxRESULTDIRxx|'$rundir/fluxes'|g' $rundir/globals/$global_base
+
+echo $input_template_disagg
+
+sed -e 's|RESULT_DIR.*|RESULT_DIR '$ASCIIFORCEDIR3H'|g' \
+    -e 's|xxFORCEDIRxx|'$ASCIIFORCEDIR1D/frc4_'|g' \
+    -e 's|xxSOILFILExx|'$(pwd -P)/soil_avail.txt'|g' $input_template_disagg > globals.disagg/global00.txt
+
+sed 's|RESULT_DIR.*|RESULT_DIR '$VICOUTDIR'|g' $input_template_sim > global.tile.sim.template
+endyear=$(echo $ENDDATE | awk -F- '{print $1}')
+startyear=$(echo $STARTDATE | awk -F- '{print $1}')
+statefile=$VICSTATEDIR/stateout_$tileid
+echo $startyear
+cwd=$(pwd -P)
+
+sed -e 's|xxFORCEDIRxx|'$ASCIIFORCEDIR1D/frc4_'|g' -e 's|xxFORCEYEARxx|'"$startyear"'|g' -e 's|xxSOILFILExx|'$cwd/soil_avail.txt'|g' -e 's|xxVEGPARAMxx|'$cwd/veg_avail.txt'|g' -e 's|xxSNOWBANDxx|'$cwd/snow_avail.txt'|g' -e 's|xxSTARTYEARxx|'"$startyear"'|g' -e 's|xxENDYEARxx|'"$endyear"'|g' -e 's|xxSTATEFILExx|'$statefile'|g' global.tile.sim.template > globals.sim/global00.txt
+
+
+: <<-CMT
+echo sed -e 's|xxFORCEDIRxx|'$ASCIIFORCEDIR1D/frc4_'|g' \ 
+echo     -e 's|xxFORCEYEARxx|'"$startyear"'|g' \ 
+echo     -e 's|xxSOILFILExx|'$cwd/soil_avail.txt'|g' \
+echo     -e 's|xxVEGPARAMxx|'$cwd/veg_avail.txt'|g' \
+echo     -e 's|xxSNOWBANDxx|'$cwd/snow_avail.txt'|g' \
+echo     -e 's|xxSTARTYEARxx|'"$startyear"'|g' \    
+echo     -e 's|xxENDYEARxx|'"$endyear"'|g' \
+echo     -e 's|xxSTATEFILExx|'$statefile'|g' global.tile.sim.template > globals.sim/global00.txt
+CMT
+
+echo "HERE1"
+pwd
+#: <<-CMT
+#for i in $(ls $(pwd -P)/$splitdir/splitlists/splitlist*)
+#do
+#splitID=$(basename $i | sed 's/splitlist//g')
+#sed 's|xxSOILFILExx|'$i'|g' global.tile.template > globals/global$splitID.txt
+#done
+
+#CMT
+ 
+echo "HERE2"
+
+#cmd="mkdir -p $ASCIIFORCEDIR"
+#qcmd -q default.q@compute-0-0 -N ".mkdisaggdirs" $cmd
+
+#DONE: segregate associated forcings.  Through vic disagg
+#TODO: pack disaggregated forcing to NetCDF
+
+)
+
+
+

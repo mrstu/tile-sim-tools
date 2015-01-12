@@ -1,0 +1,192 @@
+#!/bin/bash
+
+config=$1
+source $config
+
+
+## /civil/hydro/mrstu/IS/sim-ulm/projects/prj3/cfg_vicfrc2disagg/CCSM4__historical/00_04.conf ##
+
+# VIC_SIM=/civil/hydro/mrstu/IS/sim-vic/vic.4.1.2.l.scrape_20140404/VIC/src/vicNl
+# vicglobaldir_sim=/civil/hydro/mrstu/IS/sim-ulm/projects/prj3/control_vic/bcc-csm1-1-m__historical/16_00_04/globals.sim
+# NCINPUTS=/civil/hydro/mrstu/IS/sim-ulm/projects/prj3/forcings-nc/cat.CONUS.dmnfix/CCSM4"_"historical
+# NCOUTDIR1D=/civil/hydro/mrstu/IS/sim-ulm/projects/prj3/unpack_forcings/CCSM4__historical/tiledata/tiles_16/16_00_04/frc1d-nc
+# NCOUTDIR=/civil/hydro/mrstu/IS/sim-ulm/projects/prj3/unpack_forcings/CCSM4__historical/tiledata/tiles_16/16_00_04/frc3h-nc
+# ASCIIFORCEDIR1D=/civil/hydro/mrstu/IS/sim-ulm/projects/prj3/unpack_forcings/CCSM4__historical/tiledata/tiles_16/16_00_04/frc1d
+# ASCIIFORCEDIR3H=/civil/hydro/mrstu/IS/sim-ulm/projects/prj3/unpack_forcings/CCSM4__historical/tiledata/tiles_16/16_00_04/frc3h
+# VICOUTDIR=/civil/hydro/mrstu/IS/sim-ulm/projects/prj3/unpack_forcings/CCSM4__historical/tiledata/tiles_16/16_00_04/fluxes
+# VICSTATEDIR=/civil/hydro/mrstu/IS/sim-ulm/projects/prj3/unpack_forcings/CCSM4__historical/tiledata/tiles_16/16_00_04/stateout
+# STARTDATE=1950-01-01
+# ENDDATE=2005-12-31
+
+#/civil/hydro/mrstu/IS/sim-ulm/tile-sim-tools/scripts/run_vic.bsh /civil/hydro/mrstu/IS/sim-ulm/projects/prj3/cfg_vicfrc2disagg/CCSM4__historical/00_05.conf
+
+#n0561 { /civil/hydro/mrstu/IS/sim-ulm/projects/prj3/unpack_forcings/CCSM4__historical/tiledata/tiles_16/16_00_04 }-> 
+#/civil/hydro/mrstu/IS/sim-ulm/tile-sim-tools/ulm-frc-prep-v1.0/tools_vic2nc/vic2nc -i fluxes -p flux_snow -m metadata.wb.txt -o fluxes-nc/full_data -t m -c
+
+
+logdir=$vic_control/logs_vicsim
+mkdir $logdir
+
+globdir=$vicglobaldir_sim
+
+###################################
+## vicDisagg (daily to 3-hourly) ##
+###################################
+
+#: <<-CMT
+#eval $vicdir/vicDisagg -g $globaldir/"global.4d_02_02.splitlist"$ipad #> logs/log$ipad".txt" 2>&1
+echo $globdir
+
+#yrange=1950-2005
+#mkdir -p $VICOUTDIR-nc
+#echo $TOOLDIR/vic2nc -i $VICOUTDIR -p flux_snow -m $TOOLDIR/metadata.vicflux.$yrange.txt -o $VICOUTDIR-nc/full_data -t m -c
+#$TOOLDIR/vic2nc -i $VICOUTDIR -p flux_snow -m $TOOLDIR/metadata.vicflux.$yrange.txt -o $VICOUTDIR-nc/full_data -t m -c
+#exit
+
+for glb in $(ls $globdir/global??.txt)
+do
+    echo global $glb
+    
+    veglib="/civil/hydro/mrstu/IS/sim-ulm/params-vic/LDAS_veg_lib_pseudotreeline_noLAI"
+    sed -i -e 's|VEGLIB.*|VEGLIB '"$veglib"'|g' $glb
+    
+    glbname=$(basename $glb ".txt")
+    echo $VIC_SIM $glb
+
+    endyear=$(echo $ENDDATE | awk -F- '{print $1}')
+    startyear=$(echo $STARTDATE | awk -F- '{print $1}')
+    echo $startyear $endyear
+
+    globinit=$globdir/init.$glbname.txt
+
+    # make init run
+    echo $VICOUTDIR.init $VICSTATEDIR.init
+	mkdir -p $VICOUTDIR.init $VICSTATEDIR.init
+
+    # From configuration file
+	if [ "$startyear" -eq 1950 ]
+	then
+        yrange=1950-2005
+	    	    	    
+
+        statefile=$VICSTATEDIR.init/stateout_$tileid
+        yearendinit=1959
+        echo globinit $globinit        
+        # adjust initial state run global file
+		sed -e 's|RESULT_DIR.*|RESULT_DIR '$VICOUTDIR.init'|g' -e 's|ENDYEAR.*|ENDYEAR '"$yearendinit"'|g' -e 's|STATENAME.*|STATENAME '$statefile'|g' $glb > $globinit
+        sed -i -e 's|STATEYEAR.*|STATEYEAR '"$yearendinit"'|g' $globinit
+
+    	# adjust primary global to you initial state        
+
+		initstate=$statefile"_19591231"		
+		
+        glbpath=$globdir/prod.$glbname.txt
+				
+		cp $glb $glbpath # first preserve pre-state-tethered global config
+        sed -i 's|\#INIT_STATE.*|INIT_STATE '$initstate'|g' $glbpath
+
+        if [ ! -f $initstate ]
+        then
+	        # execute initialization run
+            # only if not already exectued.
+	        $VIC_SIM -g $globinit > $logdir/log_init.$glbname.txt 2>&1
+		    vic_exit_status="$?"
+		    if [ "$vic_exit_status" -ne 0 ]
+		    then
+		        echo "Trouble with VIC initialization simulation. Exit status:" $vic_exit_status
+		        echo "Global config file: " $globinit
+		        exit $vic_exit_status
+		    fi
+	    else	        
+            echo "Nothing to do."
+            echo "Init state already exists:" $initstate
+	        echo "Global config file: " $glbpath 
+            #$globdir/prod.$glbname.txt      
+            ## this is going to prevent the main simulation from running if there is a re-run
+            ## so, in backfill it might just get re-submitted                  
+            ## if I replace the initstate (say with that from LID-V1110), then I would still want to run production
+            ## either way, have to monkey with the pbs logs to get a re-run so this seems overly constricted.
+            ## commenting out.
+	        #exit 111
+	    fi
+
+    elif [ "$startyear" -eq 2006 ]
+	then
+	    
+        yrange=2006-2099
+
+        glbpath=$globdir/prod.$glbname.txt
+
+        cp $glb $glbpath # first preserve pre-state-tethered global config
+        # ensure that end state from historical period is available.
+        
+        #TODO: replace this hack.  scen, gcm, uid, init-base-scen should be in config file. I'm harvesting from the $scen from the config file path.
+        scen=$(basename $(dirname $config) | awk -F__ '{print $2}')
+        initstate=$(echo $VICSTATEDIR/stateout_$tileid"_20051231" | sed 's/'$scen'/historical/g')
+        sed -i 's|\#INIT_STATE.*|INIT_STATE '$initstate'|g' $glbpath
+	fi
+
+	if [ -f $initstate ]
+	then
+	    # only run cells that haven't been already run.
+        # find last flux generated (and not all completed), rerun last attempted and all subsequent
+        resdir=$(grep -e '^RESULT_DIR' $glbpath | awk '{print $2}')
+        ilast=$(ls $resdir | wc -l)
+        if [ "$ilast" -ne 0 ]
+        then
+        
+        soilfile=$(grep -e '^SOIL ' $glbpath | awk '{print $2}')
+        wc -l $soilfile
+        numcells=$(wc -l $soilfile | awk '{print $1}')
+        echo $ilast $numcells
+                
+        if [ "$ilast" -lt "$numcells" ]
+        then
+            # create new soilfile with completed cells turned off
+            # create new global file
+            # turn off soil_avail.txt less than ilast
+            
+	        soilfile=$(grep -e '^SOIL ' $glbpath | awk '{print $2}')
+            awk -v c2on=$ilast '{if(NR<c2on){$1=0}; print $0}' $soilfile > $soilfile.2.txt
+            sed -e 's|'"$soilfile"'|'"$soilfile.2.txt"'|g' $glbpath > $glbpath.2.txt
+            glbpath=$glbpath.2.txt            
+        fi            
+
+        fi        
+        #exit
+
+	    # execute production run
+        # only if initstate exists.
+        # if this is a re-run, the prior log file will get clobbered.  does it matter?
+	    echo $VIC_SIM -g $glbpath
+        $VIC_SIM -g $glbpath > $logdir/log_$glbname.txt 2>&1
+        
+	    vic_exit_status="$?"
+	    if [ "$vic_exit_status" -ne 0 ]
+	    then
+	        echo "Trouble with VIC simulation. Exit status:" $vic_exit_status
+	        echo "Global config file: " $glbpath
+	        exit $vic_exit_status
+	    fi	    	    	    	    
+	else
+	    echo "Init state file does not exist:" $initstate
+        echo "Global config file: " $glbpath	    
+	    exit 177
+	fi
+
+    #exit
+    #TOOLDIR=/civil/hydro/mrstu/IS/sim-ulm/tile-sim-tools/tools_vic2nc
+    #$startyear $endyear
+
+    #TODO: continue packing at last attempted month
+    mkdir -p $VICOUTDIR-nc
+    echo $TOOLDIR/vic2nc -i $VICOUTDIR -p flux_snow -m $TOOLDIR/metadata.vicflux.$yrange.txt -o $VICOUTDIR-nc/full_data -t m -c
+    $TOOLDIR/vic2nc -i $VICOUTDIR -p flux_snow -m $TOOLDIR/metadata.vicflux.$yrange.txt -o $VICOUTDIR-nc/full_data -t m -c > $logdir/log_vic2nc_$glbname.txt 2>&1
+	if [ "$?" -eq 0 ]
+    then
+        rm -rf $VICOUTDIR $VICOUTDIR.init
+        mkdir $VICOUTDIR $VICOUTDIR.init
+    fi
+    #/civil/hydro/mrstu/IS/sim-ulm/tile-sim-tools/ulm-frc-prep-v1.0/tools_vic2nc/vic2nc -i fluxes -p flux_snow full_data -m metadata.wb.txt -o fluxes-nc/full_data -t m -c
+done
+

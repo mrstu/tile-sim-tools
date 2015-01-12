@@ -1,0 +1,73 @@
+# This file contains metadata for the
+# VIC-format data files 
+#--------------------------------------------
+# Global Attributes
+#--------------------------------------------
+INSTITUTION	University of Washington Dept. of Civil and Environmental Engineering
+SOURCES		VIC 4.1.2.l.macav2
+PRODUCTION      -
+HISTORY     -
+PROJECTION  Geographic
+SURFSGNCONVENTION   Traditional
+
+#--------------------------------------------
+# Dimensions
+#--------------------------------------------
+# Time
+START_TIME	1950-01-01 00:00:00
+END_TIME	2005-12-31 00:00:00
+TIME_STEP   86400
+TIME_UNITS  sec
+# Levels (Z-axis)
+NLEVELS     3
+
+#--------------------------------------------
+# Variables
+#--------------------------------------------
+#TRUE    SoilMoist1  mm      TRUE   TRUE        1   Total soil moisture content top layer
+#TRUE    SoilMoist2  mm         TRUE        1   Total soil moisture content middle layer
+#TRUE    SoilMoist3  mm         TRUE        1   Total soil moisture content bottom layer
+#TRUE    SoilTemp1  C      FALSE   TRUE        1   Soil temperature top layer
+#TRUE    SoilTemp2  C      FALSE   TRUE        1   Soil temperature middle layer
+#TRUE    SoilTemp3  C      FALSE   TRUE        1   Soil temperature bottom layer
+#TRUE    WDew   mm      FALSE   TRUE        1   Interception storage in canopy
+#TRUE    PET_SatSoil      mm      FALSE   TRUE        1   Potential bare soil evaporation 
+#TRUE    PET_NatVeg      mm      FALSE   TRUE        1   Potential transpiration from current vegetation
+#TRUE    Transp      mm      FALSE   TRUE        1   Transpiration
+# Format & Endian:
+# FORMAT can be one of BINARY, ASCII, or SCIENTIFIC
+# ENDIAN can be one of LITTLE or BIG
+# Defaults are FORMAT = BINARY and ENDIAN = LITTLE
+FORMAT  ASCII
+#ENDIAN  LITTLE
+# The Sign and Mult columns are only used with FORMAT = BINARY.
+# For other formats, please place a "-" in the Sign and Mult columns.
+# Read	Name		Units		Z-Dep?	Sign		Mult	Description
+FALSE   Year        year   FALSE   FALSE       1   -
+FALSE   Month       month  FALSE   FALSE       1   -
+FALSE   Day         day    FALSE   FALSE       1   -
+TRUE    Evaporation mm     FALSE   TRUE        1   Total Evapotranspiration
+TRUE    Qs          mm     FALSE   TRUE        1   Surface runoff
+TRUE    Qsb         mm     FALSE   TRUE        1   Subsurface runoff
+TRUE    SoilMoist   mm     3       TRUE        1   Total soil moisture content top layer
+TRUE    SoilTemp    C      3       TRUE        1   Soil temperature top layer
+TRUE    SWE         mm     FALSE   TRUE        1   Snow Water Equivalent
+TRUE    Sensible    W/m^2  FALSE   TRUE        1   Sensible heat flux
+TRUE    Latent      W/m^2  FALSE   TRUE        1   Net upward latent heat flux from vaporization
+TRUE    LatentSub   W/m^2  FALSE   TRUE        1   Net upward latent heat flux from sublimation
+TRUE    Ground      W/m^2  FALSE   TRUE        1   Ground heat flux
+TRUE    Rnet        W/m^2  FALSE   TRUE        1   Net downward radiation flux
+TRUE    SurfTemp    C      FALSE   TRUE        1   Average surface temperature
+TRUE    Shortwave   W/m^2  FALSE   TRUE        1   Incoming shortwave
+TRUE    Shortwave_net  W/m^2   FALSE   TRUE        1   Net downward shortwave flux
+TRUE    Longwave       W/m^2   FALSE   TRUE        1   Incoming longwave at ground surface under vegetation
+TRUE    Longwave_net   W/m^2   FALSE   TRUE        1   Net downward longwave flux
+TRUE    Precip         mm      FALSE   TRUE        1   Precipitation
+TRUE    Qair           kg/kg   FALSE   TRUE        1   Specific humidity
+TRUE    PET_SatSoil    mm      FALSE   TRUE        1   Potential bare soil evaporation 
+TRUE    PET_h20Surf    mm      FALSE   TRUE        1   Potential open water evaporation 
+TRUE    PET_Short      mm      FALSE   TRUE        1   Potential short reference crop (grass) transpiration
+TRUE    PET_Tall       mm      FALSE   TRUE        1   Potential tall reference crop (alfalfa) transpiration
+TRUE    PET_NatVeg     mm      FALSE   TRUE        1   Potential transpiration from current vegetation
+TRUE    Transp         mm      FALSE   TRUE        1   Transpiration
+TRUE    Qsm            mm      FALSE   TRUE        1   Snow melt

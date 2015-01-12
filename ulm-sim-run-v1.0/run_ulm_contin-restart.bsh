@@ -1,0 +1,71 @@
+#!/bin/bash
+
+TOOLS_DIR="/gscratch/hydro/mrstu/ulm3/BPA_304/models/ulm"
+INPUT_DIR="/gscratch/hydro/mrstu/ulm3/BPA_304/models/ulm"
+
+#mkdir $INPUT_DIR/joblogs
+
+itemplate=$1
+ilog=$2
+
+#args=("$@")
+#itemplate="${args[0]}"
+#ilog="${args[1]}"
+
+#echo itemplate $itemplate
+#echo ilog $ilog
+
+#RESTART='/civil/hydro/mrstu/IS/sim-ulm/projects/project2/unpack_forcings/project2/LID-V1110__historical/tiledata/tiles_32/32_00_01/ulm-nc-state/state' 
+restate=$(grep -e "RESTART=" $itemplate | awk -F= '{rs=$2;gsub(" ","",rs); print rs}' | sed "s|'||g")
+outdir=$(grep -e "RESULT=" $itemplate | awk -F= '{print $2}' | sed "s|'||g")
+lastyear=$(grep -e "YEAR_FINAL=" $itemplate | awk -F= '{print $2}')
+lastmon=$(grep -e "MONTH_FINAL=" $itemplate | awk -F= '{print $2}')
+lastfile=$lastyear$lastmon
+#'/civil/hydro/mrstu/IS/sim-ulm/projects/project2/unpack_forcings/project2/LID-V1110__historical/tiledata/tiles_32/32_00_01/ulm-nc/'
+echo $outdir
+lastpresent=( $(ls $outdir"wb".*.nc) )
+echo $lastpresent
+lastpresDATE=$(echo ${lastpresent[${#lastpresent[@]} - 1]} | awk -F. '{print $2}')
+
+if [ "${#lastpresent[@]}" -eq 0 ] 
+then
+echo COMMAND: $TOOLS_DIR/ulm $itemplate
+$TOOLS_DIR/ulm $itemplate > $ilog
+
+else
+echo $lastfile $lastpresDATE
+if [ $lastfile -gt $lastpresDATE ]
+then
+    if [ ! -f $itemplate.restart.$lastpresDATE ]
+    then
+    echo "Need to restart partial run!"
+    ## get prior month timestamp for state file (prior to last wb.yyyymm.nc)
+    ## so model start on 2000-01-01 would be initialized with state.199912.nc
+    priordate=$(echo $lastpresDATE | awk '{y4=substr($0,1,4); m2=substr($0,5,2); if(m2=="01"){y4=y4-1;m2="12";y6=y4+m2}else{y6=$0-1}; print y6}')
+    # use state file for prior year
+    #prioryear=$(echo $priordate |  awk '{y4=substr($0,1,4); print y4}')
+    #priormon=$(echo $priordate |  awk '{m2=substr($0,5,2); print m2}')    
+    curryear=$(echo $lastpresDATE |  awk '{y4=substr($0,1,4); print y4}')
+    currmon=$(echo $lastpresDATE |  awk '{m2=substr($0,5,2); print m2}')    
+    sed 's|INITIAL=.*|INITIAL='"\'$restate.$priordate.nc\'"'|g' $itemplate > $itemplate.restart
+    #sed -i 's|YEAR0=.*|YEAR0='"$prioryear"'|g' $itemplate.restart
+    #sed -i 's|MONTH0=.*|MONTH0='"$priormon"'|g' $itemplate.restart    
+    sed -i 's|YEAR0=.*|YEAR0='"$curryear"'|g' $itemplate.restart
+    sed -i 's|MONTH0=.*|MONTH0='"$currmon"'|g' $itemplate.restart    
+
+    mv $itemplate.restart $itemplate.restart.$lastpresDATE        
+    echo COMMAND: $TOOLS_DIR/ulm $itemplate.restart.$lastpresDATE
+    $TOOLS_DIR/ulm $itemplate.restart > $ilog.restart.$lastpresDATE
+    else
+    echo "RESTART FILE, $itemplate.restart.$lastpresDATE, ALREADY EXISTS.  TRYING AGAIN."
+    echo COMMAND: $TOOLS_DIR/ulm $itemplate.restart.$lastpresDATE
+    $TOOLS_DIR/ulm $itemplate.restart.$lastpresDATE > $ilog.restart.$lastpresDATE
+    fi
+else
+    echo "OUTPUT FILES ALREADY EXIST.  NOTHING TO DO."
+fi
+#echo COMMAND: $TOOLS_DIR/ulm $itemplate
+##$TOOLS_DIR/ulm $itemplate > $ilog
+fi
+
+

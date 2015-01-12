@@ -1,0 +1,131 @@
+#!/bin/bash
+
+TOOLS_DIR="/gscratch/hydro/mrstu/ulm3/BPA_304/models/ulm"
+INPUT_DIR="/gscratch/hydro/mrstu/ulm3/BPA_304/models/ulm"
+
+itemplatedir=$1
+ilog=$2
+
+if [ ! -f $ilog ]
+then
+    mkdir -p $ilog
+fi
+
+cfgs=($(ls $itemplatedir/*.cfg))
+ncfgs="${#cfgs[@]}"
+cfgsDone=($(ls $itemplatedir/*.cfg.DONE))
+
+#swt=$(echo "${#cfgs[@]}"-"${#cfgsDone[@]}"}
+if [ "${#cfgsDone[@]}" -eq 0 ]
+then
+    ## All configs -- Fresh Start
+    echo "Fresh start"
+elif [ "${#cfgs[@]}" -eq 0 ]
+then   
+    echo "Checking Doneness..."
+    ## All ran but unclear if all succeeded
+    ## No incompletes, but did everything succeed?  
+    lastDone=${cfgsDone[${#cfgsDone[@]}-1]}
+    echo "...getting RESTART location"
+    stateloc=$(grep -e "RESTART=" $lastDone | awk -F= '{rs=$2;gsub(" ","",rs); print rs}' | sed "s|'||g")
+    echo "...RESTART location = $stateloc"
+    statelist=($(ls $stateloc.*.nc))
+    ## If number of state files not equal to number of configs then find failure point
+    ## assume failure point is concurrent with last available state file.
+    if [ "${#statelist[@]}" -ne "${#cfgsDone[@]}" ]
+    then
+	    laststate="${statelist[${#statelist[@]}-1]}"
+	    ## move configs.DONE from laststate date onward back to undone.
+	    last_dtstmp=$(basename $laststate | awk -F. '{print $2}')
+	    for i in "${cfgsDone[@]}"
+	    do
+	        bnm=$(basename $i .cfg.DONE)
+	        dtstmp=$(echo $bnm | awk -F_ '{print $2}')
+	        #echo $bnm $i $dtstmp $last_dtstmp
+	        if [ "$dtstmp" -ge "$last_dtstmp" ]
+	        then
+                echo "Re-staging: $i"
+	            mv $i $(echo $i | sed 's|.DONE||g')
+	        fi
+	    done
+	    cfgs=($(ls $itemplatedir/*.cfg))    
+	fi
+    #chksuccess=$(tail -n 3 $lastDone | grep -e "Reached end" | awk '{if(length($0) > 0){print 0}else{print1}}')
+else
+    lastDone="${cfgsDone[${#cfgsDone[@]}-1]}"        
+    ## First of remaining configs
+    #lastcfg="${cfgs[0]}"
+    ## Repeat prior month: change status to not-DONE
+    mv $lastDone $(echo $lastDone | sed 's|.DONE||g')
+    ## re-list configs so updated with prior month
+    cfgs=($(ls $itemplatedir/*.cfg))
+fi    
+
+## RUN STAGED CONTROL FILES ##
+nstep=1
+for itemplate in "${cfgs[@]}"
+do
+    itempname=$(basename $itemplate .cfg)
+    outlog=$ilog/$itempname".txt"
+
+    echo COMMAND: $TOOLS_DIR/ulm $itemplate
+    #TODO: what if outlog already exists. May want to preserve it.
+    $TOOLS_DIR/ulm $itemplate > $outlog 2>&1
+    EXIT_STATUS_ULM="$?"
+
+    dtstmp=$(echo $itempname | awk -F_ '{print $2}')
+
+    ## Compress daily output
+    if [ "$EXIT_STATUS_ULM" -eq 0 ]
+    then
+        echo $nstep $ncfgs
+        echo logfile: $itemplate >> $ilog/avgwberror.txt
+        grep -e "avg wb_error" $outlog | awk -F: '{print $2}' | awk '{print $1}' | xargs >> $ilog/avgwberror.txt
+
+        if [[ "$nstep" -ne 1 && "$nstep" -ne "$ncfgs" ]]
+        then
+            rm $outlog
+        fi
+        simout_prefix=$(grep -e "RESULT=" $itemplate | awk -F= '{print $2}' | sed "s|'||g")
+        simout_name=$simout_prefix/"wb."$dtstmp".nc"
+        ncks -O -4 -L 1 $simout_name $simout_name
+        
+    else        
+        echo "ULM error encountered!  Exit status: "$EXIT_STATUS_ULM
+        exit "$EXIT_STATUS_ULM"
+    fi       
+    let nstep=nstep+1
+            
+    echo "...confirming RESTART saved"
+    stateloc=$(grep -e "RESTART=" $itemplate | awk -F= '{rs=$2;gsub(" ","",rs); print rs}' | sed "s|'||g")
+    statelist=($(ls $stateloc.*.nc))
+    echo "...RESTART location = $stateloc"
+    laststatefile="${statelist[${#statelist[@]}-1]}"   
+    last_dtstmp=$(basename $laststatefile | awk -F. '{print $2}')
+    if [ "$last_dtstmp" -ge "$dtstmp" ]
+    then
+	    # IF restart occurs, then only configs not "done" will be re-submitted.
+	    mv $itemplate $itemplate.DONE
+    else
+        echo "STATE FILE NOT SAVED FOR" $dtstmp
+        echo "last state file:" $laststatefile
+        echo "last ctl file:" $itemplate
+        echo "Exiting status 177"
+        exit 177
+    fi
+
+done
+
+
+exit
+for itemplate in $(ls $itemplatedir/*.cfg)
+do
+    itempname=$(basename $itemplate .cfg)
+    outlog=$ilog/$itempname".txt"
+
+	echo COMMAND: $TOOLS_DIR/ulm $itemplate
+	$TOOLS_DIR/ulm $itemplate > $outlog
+    # IF restart occurs, then only configs not "done" will be re-submitted.
+	mv $itemplate $itemplate.DONE
+done
+

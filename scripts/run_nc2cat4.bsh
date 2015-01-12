@@ -1,0 +1,37 @@
+#!/bin/bash
+
+config=$1
+source $config
+
+# extract tile from pr,tasmax,tasmin,was variable files
+# merge variables
+# use nc2cell.py to write out ascii 4 column forcings.
+
+mkdir -p $NCOUTDIR1D
+
+itiles=()
+for ivar in $(ls $NCINPUTS"_"*.nc)
+do 
+    fname=$(basename $ivar)
+    ncks -O --mk_rec_dmn time $tileextent $ivar $NCOUTDIR1D/$fname
+    itiles=( "${itiles[@]}" $NCOUTDIR1D/$fname )
+done
+
+/sw/contrib/hydro/bin/cdo -O merge "${itiles[@]}"  $NCOUTDIR1D/merged_rec.nc
+
+rm "${itiles[@]}"    
+
+optcdo=( fldmean fldmax fldmin fldstd1 )
+for icdo in "${optcdo[@]}"
+do
+#/sw/contrib/hydro/bin/cdo -O fldmean $NCOUTDIR1D/merged_rec.nc $NCOUTDIR1D/.merged_rec.fldmean.nc
+/sw/contrib/hydro/bin/cdo -O $icdo $NCOUTDIR1D/merged_rec.nc $NCOUTDIR1D/.merged_rec.$icdo.nc
+done
+
+#/sw/contrib/hydro/bin/cdo -O fldstd $NCOUTDIR1D/merged_rec.nc $NCOUTDIR1D/.merged_rec.fldstd.nc
+python /civil/hydro/mrstu/IS/sim-ulm/tile-sim-tools/scripts/nc2cell.py $NCOUTDIR1D/merged_rec.nc $ASCIIFORCEDIR1D
+
+#TODO: do more with these before deleting them? These can be re-accessed fairly easily.
+rm $NCOUTDIR1D/merged_rec.nc
+
+#TODO: add option to run simulation, flux packing, analyses.

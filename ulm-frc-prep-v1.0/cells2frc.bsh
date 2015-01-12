@@ -1,0 +1,23 @@
+#!/bin/bash
+
+config=$1
+source $config
+
+## origin: derived from catvar_grd2cell.bsh
+
+## compile requirements: /home/stumbaugh/lib/cell_to_file.c
+
+mkdir -p $outdir_frc
+mkdir -p $syncdir
+mkdir -p $controldir/cfg_combactive
+rm $controldir/cfg_combactive/combactive.cfg 
+
+for splt in $(ls $controldir/$splitdir/*)
+do
+
+    nm_split=$(basename $splt)
+    $BASECODE/combvars.bsh $splt $basedir_cells $outdir_frc  > log_$runname"_"$nm_split 2>&1 &
+
+done
+
+wait

@@ -1,0 +1,71 @@
+#!/bin/bash
+
+
+#initial='/civil/hydro/mrstu/IS/sim-ulm/projects/project2/test_supercool/just_195112/results/state.195108.nc'
+
+incfg=$1
+monstartfile=$2 #month_starts_1950-2005.txt
+monendfile=$3   #month_ends_1950-2005.txt
+initialstate=$4
+statedir=$5 #/civil/hydro/mrstu/IS/sim-ulm/projects/project2/test_supercool/just_195112/results/
+
+inname=$(basename $incfg)
+indir=$(dirname $incfg)
+newcfgdir=$indir/.$inname
+mkdir -p $newcfgdir
+
+if [ "$initialstate" = "None" ]
+then
+    initial="''"
+else
+    initial=$initialstate
+fi
+
+ds=($(cat $monstartfile))
+df=($(cat $monendfile))
+
+nrecs=$(echo "${#ds[@]}"-1 | bc)
+for di in $(seq 0 1 $nrecs)
+do
+    #echo $di ${ds[di]} ${df[di]}
+    y0=$(echo ${ds[di]} | awk -F- '{print $1}')
+    m0=$(echo ${ds[di]} | awk -F- '{print $2}')
+    yF=$(echo ${df[di]} | awk -F- '{print $1}')
+    mF=$(echo ${df[di]} | awk -F- '{print $2}')
+    dF=$(echo ${df[di]} | awk -F- '{print $3}')
+    
+    if [ "$di" -ne 0 ]
+    then
+        #initial="''"
+    #else
+        #initial="'/civil/hydro/mrstu/IS/sim-ulm/projects/project2/test_supercool/just_195112/results/state."$yP$yM".nc'"
+        initial="'"$statedir/state.$yP$yM.nc"'"
+    fi
+
+newcfgmon=$newcfgdir/ctl_$y0$m0.cfg
+cat >$newcfgmon.tmp <<EOL
+
+&CONTROL
+      ! Noah parameters for CONUS project
+      MODEL_DT=10800        ! Model time step length (sec)
+      OUTPUT_DT=86400     ! Output time step length (sec)
+      YEAR0=${y0}
+      MONTH0=${m0}
+      DAY0=01
+      YEAR_FINAL=${yF}
+      MONTH_FINAL=${mF}
+      DAY_FINAL=${dF}
+EOL
+            
+cat $newcfgmon.tmp $incfg > $newcfgmon
+
+cat >>$newcfgmon <<EOL        
+      INITIAL=$initial
+&END
+EOL
+rm $newcfgmon.tmp
+
+yP=$yF
+yM=$mF
+
+done

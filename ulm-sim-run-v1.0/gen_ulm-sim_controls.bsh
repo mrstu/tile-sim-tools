@@ -1,0 +1,126 @@
+#!/bin/bash
+
+#setup config file
+
+## Just change the submission scripts
+justPBS=0
+
+config=$1 ## cfg_ulm_setup/LID-V1110__historical.cfg
+source $config
+
+############################################################
+## Create ulm control files and Hyak submission scripts   ##
+############################################################
+
+mkdir -p $CONTROL/jobconfigs
+mkdir -p $CONTROL/joblogs
+#mkdir -p $DATA/{frc3h-nc,ulm-nc}
+
+if [ "$justPBS" -eq 0 ]
+then
+    
+rm $CONTROL/masterargs.txt
+touch $CONTROL/masterargs.txt
+        
+#for ifrc in $(ls $DATA/ulm-nc)
+cnt=0
+#
+for ifrc in $(ls -d $FRCDATA/$TILE16DSIZE*)
+do
+## This is to push select tiles into the job setup pipeline
+## It will populate 00,01,.. until the select jobs are all pushed.  This destroys proper versions.
+##for seltile in 16_01_09 16_02_14 16_03_16 16_04_16 16_05_14 16_06_12 16_07_09 16_08_06 16_09_03 16_09_20 16_10_19 16_11_18 16_12_17 16_13_15 16_14_13 16_15_11 16_16_09 16_17_07 16_18_05 16_19_03 16_19_20 16_20_17 16_21_13
+##do
+    ##ifrc=$FRCDATA/$seltile    
+        
+    ## INPUT FORCINGS DIRECTORY
+    DATAFRC=$ifrc/frc3h-nc
+    ## SIM OUTPUT DIRECTORY
+    tileid=$(basename $ifrc)
+    mkdir -p $SIMDATA/$tileid/ulm-nc
+    STATEDIR=$SIMDATA/$tileid/ulm-nc-state
+    mkdir -p $STATEDIR
+    ctlfile=$(basename $ifrc | awk -F_ '{printf("%s_%s",$2,$3)}')
+    incfg=$CONTROL/jobconfigs/$ctlfile
+    sed 's|xxTILEPARMSxx|'"$PARAMS"'|g' $TEMPLATE > $incfg
+    sed -i 's|xxTILEIDxx|'"$ctlfile"'|g' $incfg
+    sed -i 's|xxSIMDATAxx|'"$SIMDATA/$tileid"'|g' $incfg
+    sed -i 's|xxDATAFRCxx|'"$DATAFRC"'|g' $incfg
+    ## EACH TILE HAVING OWN SNOWBANDS FILE
+    sed -i 's|xxSNOWBANDSxx|'"$tileid"'|g' $incfg
+    #echo $CONTROL/jobconfigs/$ifrc >> $CONTROL/masterargs.txt        
+    #echo $TOOLS_DIR/ulm $CONTROL/jobconfigs/$ifrc '>' $CONTROL/joblogs/log_$ifrc '2>&1' >> $CONTROL/masterargs.txt        
+    echo $CONTROL/jobconfigs/.$ctlfile $CONTROL/joblogs/$ctlfile >> $CONTROL/masterargs.txt
+    echo $tileid
+    mkdir -p $CONTROL/joblogs/$ctlfile
+    if [ "$cnt" -gt "12" ]
+    then
+        # prevent flooding the interactive 16 core machine.
+        wait
+        let cnt=0
+    fi
+
+    if [ "$INITSTATE" = "None" ]
+    then
+        initial="''"
+        $TOOLS_DIR/tether2.bsh $incfg $MONSTARTFILE $MONENDFILE $initial $STATEDIR &                
+    else
+        initial="$INITDIR/$tileid/$INITSTATE"
+            $TOOLS_DIR/tether2.bsh $incfg $MONSTARTFILE $MONENDFILE $initial $STATEDIR &
+    fi
+    let cnt=cnt+1
+done
+
+fi
+wait
+#mkdir $INPUT_DIR/joblogs
+##$TOOLS_DIR/ulm $INPUT_DIR/new_ulm_template.txt > $INPUT_DIR/joblogs/log_$logdate 2>&1
+
+#############################################################
+## Create node submission files (n-tiles/numjobs-per-node) ##
+#############################################################
+
+cd $JOB_WORKDIR
+rm masterargs.sub_* joblog_* mnsubmit.ctl_*.qsub
+#split -l 22 -d $ARGS_MASTER masterargs.sub_
+split -l $NUMJOBS -d $ARGS_MASTER masterargs.sub_
+
+rm $JOB_WORKDIR/run_q-hydro.bsh $JOB_WORKDIR/run_q-backfill.bsh
+
+for isub in $(ls masterargs.sub_*)
+do
+
+subID=$(echo $isub | awk -F_ '{print $2}')
+ARGS_SUB_NODE=$isub
+JOBLOG_NODE=$JOBLOG"_"$subID
+BUNDLE_NAME=$BUNDLE_NAMESTUB"_"$subID
+
+
+
+cat >$JOB_WORKDIR/mnsubmit.ctl_$subID.qsub <<EOL
+#PBS -N $BUNDLE_NAME
+#PBS -l $JOB_SPEC
+#PBS -l walltime=03:55:00
+#PBS -m abe -M mrstu@u.washington.edu
+#PBS -o $JOB_OUTPUT
+#PBS -j oe
+#PBS -d $JOB_WORKDIR
+HYAK_SLOTS=${HYAK_SLOTS}
+module load $JOB_MODULES
+cat $ARGS_SUB_NODE | parallel -j $HYAK_SLOTS --joblog $JOBLOG_NODE --colsep ' ' --resume-failed $BINWRAPPER {}
+exit 0
+EOL
+
+echo qsub $JOB_WORKDIR/mnsubmit.ctl_$subID.qsub >> $JOB_WORKDIR/run_q-hydro.bsh
+echo qsub -q bf $JOB_WORKDIR/mnsubmit.ctl_$subID.qsub >> $JOB_WORKDIR/run_q-backfill.bsh
+
+done
+
+chmod 744 $JOB_WORKDIR/run_q-hydro.bsh $JOB_WORKDIR/run_q-backfill.bsh
+
+echo '**Setup complete**'
+echo "Submit on q-hydro: ."$JOB_WORKDIR/run_q-hydro.bsh
+echo "Submit on q-backfill: ."$JOB_WORKDIR/run_q-backfill.bsh
+
+
+

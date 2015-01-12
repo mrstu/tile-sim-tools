@@ -1,0 +1,8 @@
+#!/bin/bash
+
+homelib=/home/stumbaugh/lib
+bindir=bin
+
+mkdir $bindir
+
+gcc -lm -o /bin/cell_to_file $homelib/cell_to_file.c

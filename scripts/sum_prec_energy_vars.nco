@@ -1,0 +1,12 @@
+/*
+  Usage:
+  
+  ncap2 -O -S sum_prec_energy_vars.nco wb.195912.nc wb.195912.prec.nc
+
+*/
+
+PREC=(Rainf*86400.) + (Snowf*86400.);
+PREC@units="mm/day";
+
+// Unclear why this is breaking when used in combo with above.
+//ENERGY=SWnet + LWnet;

@@ -1,0 +1,62 @@
+#!/bin/bash
+#$ -cwd
+#$ -j y
+#$ -S /bin/bash 
+
+nc1t=$1
+gridsize=$2
+splitsize=$3
+
+dimtime=Time
+dimlat=Latitude
+dimlon=Longitude
+
+: <<-CMT
+#ncks -d $dimtime,0 $1 dummy.nc
+nc1t="dummy.nc" # ncks -d time,0 2005-12-01_2005-12-31 dummy.nc
+#ncks -d time,0 2005-12-01_2005-12-31 dummy.nc
+# get description of grid
+cdo griddes $nc1t > $nc1t".griddes"
+grdsz=$(grep "^gridsize" $nc1t.griddes | awk -F= '{print $2}' | sed 's| ||g')
+CMT
+
+# print ascii one row per time step for all grid points from lower left to right, up row and reset then left to right, repeat
+cdo outputf,"%4.5f ",$gridsize $nc1t > $nc1t.flatij.txt
+
+awk '{print NF; count=0; for(i=1;i<=NF;i++){print count; count+=1}}' $nc1t.flatij.txt > $nc1t.flatij.nlist.txt
+
+lllat=$(ncks -H -C -v $dimlat -s "%4.5f\n" $nc1t | awk '{if(NR==1){max=$1; min=$1;}; if(length($0)!=0){if($1>max){max=$1}; if($1<min){min=$1};}}END{printf("%4.5f",min)}')
+lllon=$(ncks -H -C -v $dimlon -s "%4.5f\n" $nc1t | awk '{if(NR==1){max=$1; min=$1;}; if(length($0)!=0){if($1>max){max=$1}; if($1<min){min=$1};}}END{printf("%4.5f",min)}')
+
+echo $lllat
+echo $lllon
+if [ 1 -eq 1 ]
+then
+# get columns with good data (0-based)
+#awk '{count=0; for(i=1;i<=NF;i++){if($i!=-9999.00000){print count, 1}else{print count, 0}; count+=1;}}' $nc1t.flatij.txt > $nc1t.flatij.valinds.txt
+awk '{count=0; for(i=1;i<=NF;i++){if($i!=-9999.000){a[i,0]=count; a[i,1]=1}else{a[i,0]=count; a[i,1]=0}; count+=1;}}END{print count; for(i=1;i<=NF;i++){print a[i,0], a[i,1]}}' $nc1t.flatij.txt > $nc1t.flatij.valinds.txt
+fi
+
+coln=$(awk '{if($1=="xsize"){print $3}}' $nc1t".griddes")
+rown=$(awk '{if($1=="ysize"){print $3}}' $nc1t".griddes")
+echo "columns:" $coln
+echo "rows:" $rown
+
+# get columns with good data (0-based)
+#awk -v ncols=$coln -v nrows=$rown -v lat0=$lllat -v lon0=$lllon 'BEGIN{lat0=lat0+0.00005}{if(NR>1){for(i=0;i<NF;i++){mod=$i%ncols; row=($i-mod)/ncols}; printf("%4.5f %4.5f %d %d %d\n", row*.0625+lat0, mod*.0625+lon0, row, mod, $i)}}' $nc1t.flatij.valinds.txt > $nc1t.mapij.txt
+awk -v ncols=$coln -v nrows=$rown -v lat0=$lllat -v lon0=$lllon 'BEGIN{lat0=lat0}{if(NR>1){for(i=0;i<NF;i++){mod=$i%ncols; row=($i-mod)/ncols}; printf("%4.5f %4.5f %d %d %d\n", row*.0625+lat0, mod*.0625+lon0, row, mod, $i)}}' $nc1t.flatij.valinds.txt > $nc1t.mapij.txt
+
+# relate index to $lat_$lon
+awk '{inum=NR-1; if($5==1){printf("%s %s_%s\n", inum, $1, $2)}}' $nc1t.mapij.txt > $nc1t.active.ind2LL.txt
+
+egoodcols=$nc1t.active.ind2LL.txt
+
+splitloc=$(dirname $nc1t)/dummy_actives
+##~/bin/mksplitlists "/home/stumbaugh/downloader/IS/v2.2/dummy_valinds.txt" /home/stumbaugh/downloader/IS/v2.2/dummy_valinds 3000
+~/bin/mksplitlists $egoodcols $splitloc $splitsize
+
+
+# map counts to lat,lons
+# exclude missing data and iterate across months, combining into separate flux files.
+# save active cells by cell index
+# combine vars for cell (by index) and save to data_$lat_$lon forcing file

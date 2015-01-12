@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# This prints out a lat lon list for the center of a group of cells from an arc info dem file
+
+awk 'BEGIN{nactive=0}{if(NR==1) tcol=$2; if(NR==2)trow=$2; if(NR==3) xc=$2; if(NR==4) yc=$2; if(NR==6) null=$2; if(NR>6) {r=NR-6; for(i=1;i<=tcol;i++){if($i!=null){nactive++;}}}}END{printf("%d\n",nactive);}' "$1"
+awk '{if(NR==1) tcol=$2; if(NR==2)trow=$2; if(NR==3) xc=$2; if(NR==4) yc=$2; if(NR==6) null=$2; if(NR>6) {r=NR-6; for(i=1;i<=tcol;i++){if($i!=null){ lat = (trow-r)*0.0625 + yc + 0.03125; lon = (i-1)*0.0625 + xc + 0.03125 ; printf("%5.5f_%5.5f\n",lat,lon);}}}}' "$1"
